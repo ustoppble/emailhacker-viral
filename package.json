@@ -1,0 +1,15 @@
+{
+  "name": "emailhacker-viral",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Máquina de conteúdo 24/7 — lives YouTube → Shorts/Reels",
+  "type": "module",
+  "scripts": {
+    "dev:renderer": "cd renderer && npx tsx watch src/index.ts",
+    "dev:pipeline": "cd pipeline && npx tsx watch src/index.ts",
+    "test:queue": "cd renderer && npx tsx src/test-queue.ts"
+  },
+  "dependencies": {
+    "bullmq": "^5.74.1"
+  }
+}

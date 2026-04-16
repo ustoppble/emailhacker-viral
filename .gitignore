@@ -1,8 +1,19 @@
 node_modules/
 out/
 dist/
+data/
+logs/
 .env
 .secrets
 .DS_Store
+*.log
+.youtube-token-*.json
+
 # Arquivos grandes (>100MB — fora do limite do GitHub)
 public/raw-reels.mp4
+
+# Workspaces independentes
+pipeline/node_modules/
+pipeline/dist/
+renderer/node_modules/
+renderer/dist/

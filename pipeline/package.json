@@ -1,0 +1,23 @@
+{
+  "name": "emailhacker-viral-pipeline",
+  "version": "0.1.0",
+  "description": "Orquestrador: download, análise, corte, fila, publicação",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "process": "tsx src/cli.ts"
+  },
+  "engines": { "node": ">=22.0.0" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "bullmq": "^5.0.0",
+    "googleapis": "^171.4.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}
