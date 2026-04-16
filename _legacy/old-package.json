@@ -1,0 +1,28 @@
+{
+  "name": "emailhacker-viral-worker",
+  "version": "0.1.0",
+  "description": "Worker independente: transforma lives YouTube em Shorts/Reels automaticamente",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "process": "tsx src/cli.ts",
+    "lint": "eslint src/",
+    "health": "curl -s http://localhost:${PORT:-3200}/health | jq"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "author": "ustoppble",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "googleapis": "^171.4.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}

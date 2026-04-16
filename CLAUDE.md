@@ -1,97 +1,172 @@
-# CLAUDE.md — Video Factory (Remotion)
+# CLAUDE.md — EmailHacker Viral (VPS 76)
 
-## Projeto
+## Segurança — REGRA ABSOLUTA (STREAMING AO VIVO)
 
-Gera videos animados 1920x1080 30fps para o EmailHacker.ai usando Remotion.
-Cada feature tem componentes proprios dentro de `src/features/{feature-name}/`.
+**O criador faz streaming ao vivo. ZERO tolerância para vazamento de dados.**
 
-## Regra: Remotion Best Practices (OBRIGATORIO)
+**NUNCA exibir no output (texto, código, terminal, qualquer lugar visível):**
+- API keys, tokens, senhas, secrets, bearer tokens, credentials
+- URLs de API com tokens embutidos
+- Dados de banco (connection strings, passwords)
+- Qualquer dado que identifique contas de usuário
 
-Skills oficiais do Remotion instaladas em `.claude/skills/remotion-best-practices/`.
+**Regras:**
+- Mascarar TUDO com `***` — sem exceção
+- Em comandos curl/fetch: usar placeholder (`$API_KEY`, `<api-key>`) — nunca valor real
+- Em logs de debug: truncar (`929a...00b8`)
+- Se um tool result retornar dados sensíveis, NÃO reproduzir no texto de resposta
+- Se precisar de credencial, ler silenciosamente de `~/.secrets/emailhacker`
+- NÃO imprimir o conteúdo de secrets no output
 
-**ANTES de escrever qualquer codigo Remotion, consultar a rule relevante:**
+## Acentos — REGRA GLOBAL
 
-| Tarefa | Rule a ler |
-|--------|-----------|
-| Animacoes (spring, interpolate, useCurrentFrame) | `rules/animations.md` + `rules/timing.md` |
-| Sequenciar cenas, delays, trim | `rules/sequencing.md` + `rules/trimming.md` |
-| Transicoes entre cenas | `rules/transitions.md` |
-| Texto animado (typewriter, stagger, word-by-word) | `rules/text-animations.md` |
-| Audio, SFX, volume | `rules/audio.md` + `rules/sfx.md` |
-| Voiceover com ElevenLabs | `rules/voiceover.md` |
-| Legendas/captions | `rules/subtitles.md` + `rules/display-captions.md` |
-| Imagens e assets | `rules/assets.md` + `rules/images.md` |
-| Videos embutidos | `rules/videos.md` |
-| Fontes (Google Fonts, local) | `rules/fonts.md` |
-| TailwindCSS | `rules/tailwind.md` |
-| 3D (Three.js) | `rules/3d.md` |
-| Light leaks / overlays | `rules/light-leaks.md` |
-| Compositions e metadata dinamica | `rules/compositions.md` + `rules/calculate-metadata.md` |
-| Parametros (Zod schema) | `rules/parameters.md` |
-| Medir DOM / texto | `rules/measuring-dom-nodes.md` + `rules/measuring-text.md` |
-| FFmpeg (trim, silence detect) | `rules/ffmpeg.md` |
-| GIFs | `rules/gifs.md` |
-| Lottie | `rules/lottie.md` |
-| Mapas (Mapbox) | `rules/maps.md` |
-| Video transparente | `rules/transparent-videos.md` |
-| Audio visualization (spectrum, waveform) | `rules/audio-visualization.md` |
-| Duracao de audio/video | `rules/get-audio-duration.md` + `rules/get-video-duration.md` |
+**Usar acentos normais em tudo** — código, comentários, commits, respostas no chat, copy. Sem exceção.
 
-**Caminho das rules:** `.claude/skills/remotion-best-practices/rules/{nome}.md`
+## Multiagente — REGRA DE COORDENAÇÃO
 
-### Regras criticas (NUNCA violar)
+**Múltiplos terminais Claude Code rodam em paralelo neste projeto.**
 
-- **PROIBIDO** CSS transitions, CSS animations, ou classes Tailwind de animacao (`animate-*`) — nao renderizam corretamente no Remotion
-- **OBRIGATORIO** usar `useCurrentFrame()` + `interpolate()` ou `spring()` para TODA animacao
-- **OBRIGATORIO** usar `extrapolateRight: 'clamp'` em interpolacoes que nao devem ultrapassar o range
-- **OBRIGATORIO** importar audio via `<Audio>` de `@remotion/media` (nao `<audio>` HTML)
-- Tempos em segundos multiplicados por `fps` do `useVideoConfig()`
+**ANTES de começar qualquer trabalho:**
+1. Ler `ROADMAP.md` — ver qual MV está livre (status `pendente`)
+2. Marcar a MV que vai trabalhar como `em andamento` no ROADMAP.md
+3. Trabalhar APENAS nos arquivos da sua MV (paths listados no ROADMAP)
+4. Ao terminar, marcar como `concluída` no ROADMAP.md
 
-## Estrutura do Projeto
+**Regras de conflito:**
+- NUNCA editar arquivo que pertence a outra MV em andamento
+- Se precisar de algo que outra MV ainda não entregou, espere ou peça ao usuário
+- `shared/` pode ser editado por qualquer agente, mas com cuidado (ler antes de editar)
+- Em caso de dúvida, pergunte ao usuário em vez de adivinhar
 
+**Formato de marcação no ROADMAP.md:**
 ```
-src/
-  VideoFactory.tsx          — composicao principal + defaultData
-  styles.ts                 — tokens: COLORS, FONTS, SCENES, MOTION
-  index.ts                  — RemotionRoot
-  data/videos.ts            — array VideoData
-  components/               — compartilhados (GridBackground, PhoneMockup, etc)
-  scenes/                   — 5 cenas genericas (Pain, Feature, Visual, Benefit, CTA)
-  features/{nome}/          — componentes especificos por feature (Selector + Builder)
+## MV1 — [concluída]        ← já terminada
+## MV2 — [em andamento]     ← alguém está trabalhando
+## MV3 — [pendente]         ← livre pra pegar
 ```
 
-## Criar video de feature nova
+## Visão
 
-1. Criar `features/{nome}/` com Selector (cena 2) + Builder (cena 3)
-2. Registrar em `FeatureScene.tsx` → `FEATURE_CONFIG` + condicional
-3. Registrar em `VisualScene.tsx` → config + condicional
-4. Atualizar `ImpactTexts` em `VideoFactory.tsx`
-5. Adicionar `VideoData` em `data/videos.ts`
-6. Apontar `defaultData` em `VideoFactory.tsx`
+**Máquina de conteúdo 24/7.** Pega lives do YouTube, transforma em Shorts/Reels com motion design gerado por IA, publica automaticamente. Roda na VPS de produção 24h.
+
+## Arquitetura — 2 Projetos + Shared
+
+```
+emailhacker-viral/
+│
+├── pipeline/                 ← PROJETO 1: Orquestrador
+│   ├── src/
+│   │   ├── index.ts          — HTTP server (porta 3200, /health, /webhook/deploy)
+│   │   ├── config.ts         — importa de shared/config
+│   │   ├── cli.ts            — invocação manual: npx tsx src/cli.ts <video-id>
+│   │   ├── processors/
+│   │   │   ├── download.ts   — yt-dlp → source.mp4
+│   │   │   ├── analyze.ts    — Claude Haiku → seleciona 8 melhores trechos
+│   │   │   ├── cut.ts        — ffmpeg → corta clip do source
+│   │   │   ├── silence.ts    — ffmpeg silencedetect → remove silêncios >2s
+│   │   │   └── webcam.ts     — ffmpeg crop fixo → face.mp4 (1080x960)
+│   │   ├── publishers/
+│   │   │   ├── youtube.ts    — googleapis OAuth → YouTube Short
+│   │   │   ├── instagram.ts  — Meta Graph API v21.0 → Instagram Reel
+│   │   │   └── r2-upload.ts  — Cloudflare R2 (AWS Sig V4)
+│   │   └── queue/
+│   │       └── producer.ts   — BullMQ: enfileira render jobs
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── renderer/                 ← PROJETO 2: Remotion puro + DIRECTOR
+│   ├── src/
+│   │   ├── index.ts          — BullMQ consumer (consome 1 job por vez)
+│   │   ├── director.ts       — Claude Code CLI + skill remotion-best-practices → gera overlay.tsx
+│   │   ├── render.ts         — npx remotion render overlay.tsx → overlay.mp4
+│   │   └── compose.ts        — ffmpeg vstack overlay.mp4 + face.mp4 → final.mp4
+│   ├── package.json          — remotion, @remotion/cli (Remotion = só dependência npm)
+│   └── tsconfig.json
+│
+├── shared/                   ← Código compartilhado entre os 2 projetos
+│   ├── types/
+│   │   └── job.ts            — Segment, JobData, RenderJob, PublishResult
+│   ├── config.ts             — env vars + leitura ~/.secrets/emailhacker
+│   ├── queue.ts              — definição da fila BullMQ 'render-jobs'
+│   └── lib/
+│       └── ffmpeg.ts         — wrapper ffmpeg/ffprobe
+│
+├── scripts/
+│   ├── setup.sh              — provisiona VPS (Node 22, ffmpeg, yt-dlp, Chromium, PM2)
+│   └── deploy.sh             — git pull → build ambos → pm2 restart
+│
+├── docs/
+│   ├── PIPELINE-V1.md        — documentação do pipeline de 11 passos
+│   └── DIRECTOR-V5-SPEC.md   — spec do DIRECTOR v5 (componentes sob medida)
+│
+├── ROADMAP.md                — 10 microvitórias com status (coordenação multiagente)
+├── ecosystem.config.cjs      — PM2: pipeline (porta 3200) + renderer (consumer)
+└── .gitignore
+```
+
+## Fluxo do Pipeline
+
+```
+Pipeline                              Renderer
+────────                              ────────
+1. Download (yt-dlp)
+2. Analyze (Haiku → 8 clips)
+3. Cut (ffmpeg)
+4. Silence cut (ffmpeg)
+5. Webcam crop (ffmpeg)
+6. Whisper (OpenAI → timestamps)
+                                      
+   ──── enfileira job BullMQ ────►    7. DIRECTOR v5 (Claude Code + skill)
+                                      8. Remotion render (puro, overlay.tsx → overlay.mp4)
+   ◄──── recebe final.mp4 ────       9. Compose (ffmpeg vstack → final.mp4)
+
+10. Scout (Haiku → copy)
+11. Publish (YouTube + Instagram)
+```
+
+**Remotion é PURO.** Zero código custom commitado. Só pacotes npm.
+O DIRECTOR gera o .tsx completo (auto-contido, com registerRoot).
+O Renderer renderiza e compõe. Pipeline só orquestra e publica.
+
+## DIRECTOR v5 — Regra Crítica
+
+O DIRECTOR NÃO usa componentes fixos. Ele CRIA um .tsx NOVO pra cada clip.
+Usa a skill `remotion-best-practices` (.agents/skills/remotion-best-practices/rules/).
+O motion design MOSTRA o que acontece na tela, NÃO é legenda da fala.
+Spec completa: `docs/DIRECTOR-V5-SPEC.md`
+
+## Regras Remotion (NUNCA violar)
+
+- **PROIBIDO** CSS transitions, CSS animations, classes Tailwind de animação (`animate-*`)
+- **OBRIGATÓRIO** `useCurrentFrame()` + `interpolate()` ou `spring()` para TODA animação
+- **OBRIGATÓRIO** `extrapolateRight: 'clamp'` em interpolações
+- **OBRIGATÓRIO** audio via `<Audio>` de `@remotion/media`
+- Skill completa: `.agents/skills/remotion-best-practices/rules/`
+
+## Infra
+
+- **VPS:** Hostinger KVM1 (1 vCPU, 4GB RAM, 50GB NVMe, Ubuntu 24.04)
+- **PM2:** pipeline (porta 3200, max 1.5GB) + renderer (consumer, max 2GB)
+- **HTTPS:** publisher.emailhacker.ai (Caddy reverse proxy)
+- **Remotion:** v4, --concurrency=1 --gl=angle-egl
+- **Redis:** local, maxmemory 256MB (BullMQ)
+- **Secrets:** `~/.secrets/emailhacker` (local/VPS) ou env vars (Docker/Coolify)
 
 ## Comandos
 
 ```bash
-# Dev (preview no browser)
-npx remotion studio
+# Dev pipeline
+cd pipeline && npx tsx watch src/index.ts
 
-# Render MP4
-npx remotion render src/index.ts VideoFactory out/{id}.mp4 --codec h264
+# Dev renderer
+cd renderer && npx tsx watch src/index.ts
 
-# Comprimir pra <10MB
-ffmpeg -i out/{id}.mp4 -c:v libx264 -crf 28 -preset slow -an out/{id}-compressed.mp4
+# Build ambos
+cd pipeline && npx tsc && cd ../renderer && npx tsc
+
+# Processar live manualmente
+cd pipeline && npx tsx src/cli.ts <youtube-url-ou-id>
+
+# Testar publicação
+cd pipeline && npx tsx src/test-publish.ts <youtube|instagram|all> <video.mp4>
 ```
-
-## Video Design System (OBRIGATORIO)
-
-**Ler `VIDEO-DESIGN-SYSTEM.md` antes de criar/editar qualquer video.**
-
-Contem: paleta completa, presets de spring, padroes de movimento, storyboard tecnico,
-layout das 5 cenas, camadas z-index, tipografia, e regras criticas.
-
-## Design Tokens (styles.ts)
-
-- bg: #0a0a0a | accent: #ef4444 | success: #16a34a | text: #e5e5e5
-- Font: monospace (SF Mono, Fira Code, JetBrains Mono)
-- Springs: snappy, bouncy, smooth, heavy, impact (ver styles.ts)
-- Cenas: pain 5s, feature 6s, visual 8s, benefit 5s, cta 3s

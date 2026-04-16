@@ -1,0 +1,16 @@
+# Credenciais carregadas automaticamente de ~/.secrets/emailhacker
+# Este arquivo lista APENAS variáveis exclusivas do worker.
+# NÃO duplicar secrets aqui — o config.ts lê do arquivo central.
+
+# Worker
+PORT=3200
+DATA_DIR=/data/video-worker
+CLEANUP_AFTER_HOURS=24
+MAX_SHORTS_PER_LIVE=8
+PUBLIC_DOMAIN=publisher.emailhacker.ai
+
+# Redis (local)
+REDIS_URL=redis://localhost:6379
+
+# GitHub Webhook (auto-deploy)
+WEBHOOK_SECRET=
