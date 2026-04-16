@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'pipeline',
-      script: 'dist/index.js',
+      script: 'dist/pipeline/src/index.js',
       cwd: '/root/emailhacker-viral/pipeline',
       env: { NODE_ENV: 'production', PORT: 3200 },
       max_memory_restart: '1500M',
@@ -12,7 +12,7 @@ module.exports = {
     },
     {
       name: 'renderer',
-      script: 'dist/index.js',
+      script: 'dist/renderer/src/index.js',
       cwd: '/root/emailhacker-viral/renderer',
       env: { NODE_ENV: 'production' },
       max_memory_restart: '2G',
