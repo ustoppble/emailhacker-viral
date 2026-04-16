@@ -99,10 +99,10 @@ export async function generateOverlay(opts: {
       'claude',
       [
         '--print',
-        '--model', 'sonnet',
+        '--model', 'haiku',
       ],
       {
-        timeout: 240_000,
+        timeout: 300_000,
         maxBuffer: 2 * 1024 * 1024,
       },
       (err, stdout, stderr) => {
