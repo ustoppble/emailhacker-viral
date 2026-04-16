@@ -50,14 +50,7 @@ function buildPrompt(opts: {
 
   return `Voce é um SENIOR MOTION DESIGNER especializado em Remotion.
 
-PASSO 1 — Leia OBRIGATORIAMENTE estas rules antes de escrever qualquer código:
-- ${rulesDir}/animations.md
-- ${rulesDir}/timing.md
-- ${rulesDir}/text-animations.md
-- ${rulesDir}/transitions.md
-- ${rulesDir}/sequencing.md
-
-PASSO 2 — Gere um arquivo .tsx COMPLETO e AUTO-CONTIDO no path: ${outputPath}
+Gere um componente .tsx COMPLETO e AUTO-CONTIDO.
 
 O arquivo DEVE conter:
 - Imports de 'remotion': registerRoot, Composition, useCurrentFrame, interpolate, spring, useVideoConfig, Sequence, AbsoluteFill
