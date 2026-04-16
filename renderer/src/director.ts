@@ -117,7 +117,7 @@ REGRAS OBRIGATÓRIAS:
    - ClipOverlay como componente principal
    - registerRoot na última linha
 
-IMPORTANTE: Escreva APENAS o arquivo .tsx em ${outputPath}. Nenhuma explicação, nenhum markdown, nenhum texto fora do arquivo.`
+IMPORTANTE: Retorne APENAS o código .tsx completo. Nenhuma explicação, nenhum markdown fence, nenhum texto fora do código. Comece com import e termine com registerRoot.`
 }
 
 // ---------------------------------------------------------------------------
@@ -152,11 +152,10 @@ export async function generateOverlay(opts: {
       [
         '--print',
         '--model', 'sonnet',
-        '--allowedTools', 'Read,Write',
       ],
       {
-        timeout: 120_000,
-        maxBuffer: 1024 * 1024,
+        timeout: 180_000,
+        maxBuffer: 2 * 1024 * 1024,
       },
       (err, stdout, stderr) => {
         if (err) {
