@@ -32,7 +32,7 @@ export async function processLive(videoId: string, transcript: string): Promise<
 
   // 2. Análise com Claude Haiku — selecionar melhores trechos
   console.log('[pipeline] Passo 2/6: Análise de transcript...')
-  const segments: Segment[] = await analyzeTranscript(transcript, config.maxShortsPerLive)
+  const segments: Segment[] = await analyzeTranscript(transcript)
   console.log(`[pipeline] ${segments.length} trechos selecionados`)
 
   // 3-6. Para cada segmento: cut -> silence -> webcam -> enqueue render
@@ -58,7 +58,7 @@ export async function processLive(videoId: string, transcript: string): Promise<
       jobId,
       clipId: idx,
       transcript: `[Clip ${idx}] ${segment.hook}\n${segment.title}`,
-      context: `Categoria: ${segment.category}, Score: ${segment.score}/10, Duração: ${segment.endTime - segment.startTime}s`,
+      context: `Categoria: ${segment.category}, Score: ${segment.score}/100, Justificativa: ${segment.justification}, Duração: ${segment.endTime - segment.startTime}s`,
       facePath,
       outputDir: join(jobDir, 'output'),
     })

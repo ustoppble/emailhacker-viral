@@ -1,244 +1,91 @@
-# ROADMAP — 10 Microvitórias
+# ROADMAP — EmailHacker Viral
 
 **Leia este arquivo ANTES de começar qualquer trabalho.**
-Pegue uma MV `pendente`, marque como `em andamento`, trabalhe, marque como `concluída`.
+Pegue uma tarefa `pendente`, marque como `em andamento`, trabalhe, marque como `concluída`.
 
 ---
 
-## MV1 — Estrutura limpa (pipeline/ + renderer/ + shared/) — [concluída]
+## Fase 1 — Estrutura + Pipeline + Renderer [CONCLUÍDA]
 
-**Objetivo:** Limpar repo e criar a estrutura de 2 projetos + shared.
+10 microvitórias executadas via swarm de agentes em paralelo.
 
-**O que fazer:**
-- Remover src/ e remotion/ atuais (código da migração anterior)
-- Criar pipeline/ com package.json + tsconfig.json + src/ vazio
-- Criar renderer/ com package.json + tsconfig.json + src/ vazio
-- Criar shared/ com types/ + config.ts + queue.ts + lib/ffmpeg.ts
-- ecosystem.config.cjs na raiz (2 apps PM2)
-- .gitignore unificado
+| MV | Descrição | Status |
+|----|-----------|--------|
+| MV1 | Estrutura pipeline/ + renderer/ + shared/ | concluída |
+| MV2 | Pipeline: server HTTP + health + config | concluída |
+| MV3 | Pipeline: download + analyze (yt-dlp + Haiku) | concluída |
+| MV4 | Pipeline: cut + silence cutter + webcam crop | concluída |
+| MV5 | Fila BullMQ: pipeline enfileira, renderer consome | concluída |
+| MV6 | Renderer: DIRECTOR v5 gera overlay.tsx | concluída |
+| MV7 | Renderer: Remotion render puro | concluída |
+| MV8 | Renderer: compose (ffmpeg vstack → final.mp4) | concluída |
+| MV9 | Pipeline: publishers (YouTube + Instagram + R2) | concluída |
+| MV10 | End-to-end: video ID → Shorts publicados | concluída |
 
-**Arquivos que cria:**
-- `pipeline/package.json`, `pipeline/tsconfig.json`
-- `renderer/package.json`, `renderer/tsconfig.json`
-- `shared/types/job.ts`, `shared/config.ts`, `shared/queue.ts`, `shared/lib/ffmpeg.ts`
-- `ecosystem.config.cjs`
+### Testes validados na VPS 76
 
-**Base existente:** `src/types/job.ts`, `src/config.ts`, `src/lib/ffmpeg.ts`
+| Teste | Resultado |
+|-------|-----------|
+| T1: Health check (porta 3200) | PASSOU |
+| T2: BullMQ (pipeline → renderer) | PASSOU |
+| T3: ffmpeg compose (overlay + face → vertical) | PASSOU |
+| T4: DIRECTOR + Remotion render | PASSOU |
+| T5: End-to-end com vídeo real | PASSOU (2min 15s/clip) |
 
-**Teste:** `ls` confirma estrutura. Ambos `npx tsc --noEmit` passam.
+### Fixes de produção (PRs #2-#7)
 
-**Desbloqueia:** MV2, MV5
-
----
-
-## MV2 — Pipeline: server HTTP + health + config — [concluída]
-
-**Objetivo:** Pipeline rodando com HTTP server funcional.
-
-**O que fazer:**
-- pipeline/src/index.ts — GET /health, POST /webhook/deploy
-- pipeline/src/config.ts — importa shared/config
-- ecosystem entry do pipeline
-
-**Arquivos que cria/edita:**
-- `pipeline/src/index.ts`
-- `pipeline/src/config.ts`
-
-**Base existente:** `src/index.ts` (server HTTP atual)
-
-**Teste:** `cd pipeline && npx tsx src/index.ts` → `curl localhost:3200/health` retorna ok.
-
-**Depende de:** MV1
-**Desbloqueia:** MV3, MV4, MV9
+| PR | Fix |
+|----|-----|
+| #2 | ecosystem.config.cjs — dist paths (rootDir: "..") |
+| #3 | director timeout 120→180s, remover --allowedTools |
+| #4 | director remover instrução de ler rules (--print não tem tools) |
+| #5 | remotion --log warn (não warning) |
+| #6 | director prompt compacto + timeout 240s |
+| #7 | director usa Haiku (rápido e confiável na VPS) |
 
 ---
 
-## MV3 — Pipeline: download + analyze (yt-dlp + Haiku) — [concluída]
+## Fase 2 — DIRECTOR v7 + Componentes [EM ANDAMENTO]
 
-**Objetivo:** Pipeline baixa vídeo e seleciona 8 melhores trechos.
+Evolução do DIRECTOR de v5 (TSX puro) pra v7 (híbrido JSON template + TSX custom).
 
-**O que fazer:**
-- pipeline/src/processors/download.ts — yt-dlp → source.mp4
-- pipeline/src/processors/analyze.ts — Claude Haiku analisa transcript → Segment[]
-
-**Arquivos que cria:**
-- `pipeline/src/processors/download.ts`
-- `pipeline/src/processors/analyze.ts`
-
-**Base existente:** `src/processors/download.ts`, `src/processors/analyze.ts`
-
-**Teste:** rodar analyze com transcript fixo → retorna 8 Segment[] com scores.
-
-**Depende de:** MV2
+| Tarefa | Status |
+|--------|--------|
+| Biblioteca de componentes (AppWindow, Terminal, DiffView, etc) | concluída |
+| ClipTemplate.tsx (composição com componentes) | concluída |
+| DIRECTOR v7 (Haiku gera JSON, fallback TSX custom) | concluída |
+| Design tokens (cores, fonts, springs) | concluída |
+| Integrar v7 no consumer do renderer | pendente |
+| Testar template mode E2E na VPS | pendente |
 
 ---
 
-## MV4 — Pipeline: cut + silence + webcam crop (ffmpeg) — [concluída]
+## Fase 3 — Piloto Automático [PENDENTE]
 
-**Objetivo:** Pipeline corta clips, remove silêncio, cropa webcam.
-
-**O que fazer:**
-- pipeline/src/processors/cut.ts — corta trecho do source.mp4
-- pipeline/src/processors/silence.ts — ffmpeg silencedetect, remove gaps >2s
-- pipeline/src/processors/webcam.ts — crop fixo (300:267:70:760 → scale 1080:960)
-
-**Arquivos que cria:**
-- `pipeline/src/processors/cut.ts`
-- `pipeline/src/processors/silence.ts`
-- `pipeline/src/processors/webcam.ts`
-
-**Base existente:** `src/processors/cut.ts` (cut + crop combinados, separar), `docs/PIPELINE-V1.md` (specs silence cutter)
-
-**Teste:** gerar face crop usando public/clips/clip-03-webcam.mp4 como referência.
-
-**Depende de:** MV2
-
----
-
-## MV5 — Fila BullMQ: pipeline enfileira, renderer consome — [concluída]
-
-**Objetivo:** Comunicação entre os 2 projetos via Redis.
-
-**O que fazer:**
-- shared/queue.ts — definição da fila 'render-jobs', interface RenderJob
-- pipeline/src/queue/producer.ts — enfileira render job
-- renderer/src/index.ts — BullMQ Worker, consome 1 por vez (concurrency=1)
-
-**Arquivos que cria:**
-- `shared/queue.ts`
-- `pipeline/src/queue/producer.ts`
-- `renderer/src/index.ts`
-
-**Base existente:** nenhuma (feature nova). Referência: BullMQ docs.
-
-**Teste:** pipeline enfileira 1 job fake → renderer consome e loga no console.
-
-**Depende de:** MV1
-
----
-
-## MV6 — Renderer: DIRECTOR v5 gera overlay.tsx — [concluída]
-
-**Objetivo:** DIRECTOR gera componente Remotion sob medida via Claude Code CLI.
-
-**O que fazer:**
-- renderer/src/director.ts — monta prompt com skill remotion-best-practices
-- Chama: `echo "prompt" | claude --print --model sonnet --allowedTools 'Read,Write'`
-- Gera overlay.tsx (1080x960, motion design + captions no bottom edge)
-- Retry 2x, fallback genérico se falhar
-
-**Arquivos que cria:**
-- `renderer/src/director.ts`
-
-**Base existente:** `src/processors/director.ts`, `.agents/skills/remotion-best-practices/`
-
-**Teste:** rodar com transcript fixo → gera .tsx com useCurrentFrame + registerRoot.
-
-**Depende de:** MV5
-
----
-
-## MV7 — Renderer: Remotion render puro (overlay.tsx → overlay.mp4) — [concluída]
-
-**Objetivo:** Renderizar o .tsx gerado pelo DIRECTOR usando Remotion como runtime puro.
-
-**O que fazer:**
-- renderer/src/render.ts — executa `npx remotion render <generated>.tsx Overlay overlay.mp4`
-- Remotion NÃO tem código custom — só pacotes npm instalados
-- O .tsx gerado é auto-contido (registerRoot + Composition + componente)
-
-**Arquivos que cria:**
-- `renderer/src/render.ts`
-
-**Teste:** render do .tsx da MV6 → produz overlay.mp4 (1080x960, 30fps).
-
-**Depende de:** MV6
-
----
-
-## MV8 — Renderer: compose (ffmpeg vstack → final.mp4) — [concluída]
-
-**Objetivo:** Empilhar overlay + face num vídeo vertical 9:16.
-
-**O que fazer:**
-- renderer/src/compose.ts — ffmpeg vstack overlay.mp4 + face.mp4 → final.mp4 (1080x1920)
-- libx264 CRF 23, AAC 128k, 30fps
-- Devolve path do final.mp4 via fila
-
-**Arquivos que cria:**
-- `renderer/src/compose.ts`
-
-**Base existente:** `src/processors/compose.ts` (já faz exatamente isso)
-
-**Teste:** compor overlay da MV7 + public/clips/clip-03-webcam.mp4 → vídeo vertical.
-
-**Depende de:** MV7
-
----
-
-## MV9 — Pipeline: publishers (YouTube + Instagram + R2) — [concluída]
-
-**Objetivo:** Pipeline publica vídeos nas plataformas.
-
-**O que fazer:**
-- pipeline/src/publishers/youtube.ts — googleapis OAuth → YouTube Short
-- pipeline/src/publishers/instagram.ts — Meta Graph API → Instagram Reel
-- pipeline/src/publishers/r2-upload.ts — Cloudflare R2 (AWS Sig V4)
-- pipeline/src/publishers/index.ts — re-exports
-- pipeline/src/test-publish.ts — teste manual
-
-**Arquivos que cria:**
-- `pipeline/src/publishers/youtube.ts`
-- `pipeline/src/publishers/instagram.ts`
-- `pipeline/src/publishers/r2-upload.ts`
-- `pipeline/src/publishers/index.ts`
-- `pipeline/src/test-publish.ts`
-
-**Base existente:** `src/publishers/` (validados na live 8, já publicaram com sucesso)
-
-**Teste:** `npx tsx src/test-publish.ts youtube <video>` → publica Short real.
-
-**Depende de:** MV2
-
----
-
-## MV10 — End-to-end: video ID entra, Shorts saem — [concluída]
-
-**Objetivo:** Pipeline completo funcionando. 1 comando → 8 Shorts publicados.
-
-**O que fazer:**
-- pipeline/src/pipeline.ts — orquestrador master (conecta tudo)
-- pipeline/src/cli.ts — CLI que aceita video ID
-- ecosystem.config.cjs final (2 apps PM2)
-- scripts/deploy.sh (build ambos + restart)
-
-**Arquivos que cria:**
-- `pipeline/src/pipeline.ts`
-- `pipeline/src/cli.ts`
-
-**Teste:** `npx tsx pipeline/src/cli.ts <video-id>` → 8 Shorts no YouTube + Instagram.
-
-**Depende de:** MV3, MV4, MV8, MV9
+| Tarefa | Status | Descrição |
+|--------|--------|-----------|
+| Integrar emailhacker-transcriptor (VPS 72) | pendente | Transcrição via API em vez de yt-dlp local |
+| Resolver download na VPS (proxy/cookies) | pendente | yt-dlp bloqueado por bot detection |
+| Whisper fallback | pendente | Pra lives sem legendas automáticas |
+| Cron: detectar live nova → disparar pipeline | pendente | Polling YouTube API do canal |
+| Scout: gerar copy pra cada plataforma | pendente | Haiku gera título + descrição + hashtags |
+| Publicação automática pós-render | pendente | Pipeline recebe final.mp4 → publica |
+| Scheduling: espaçar posts ao longo do dia | pendente | Não postar 8 de uma vez |
+| Analytics: tracking de views/engagement | pendente | Medir performance por clip |
 
 ---
 
 ## Mapa de dependências
 
 ```
-MV1  Estrutura limpa
- ├──► MV2  Server HTTP + config
- │    ├──► MV3  Download + Analyze
- │    ├──► MV4  Cut + Silence + Webcam
- │    └──► MV9  Publishers
- │
- └──► MV5  Fila BullMQ
-      └──► MV6  DIRECTOR v5
-           └──► MV7  Remotion render
-                └──► MV8  Compose
+FASE 1 (concluída)
+  MV1 → MV2 → MV3, MV4, MV9
+  MV1 → MV5 → MV6 → MV7 → MV8
+  MV3 + MV4 + MV8 + MV9 → MV10
 
-MV3 + MV4 + MV8 + MV9 ──► MV10  End-to-end
+FASE 2 (em andamento)
+  Componentes → ClipTemplate → DIRECTOR v7 → Teste E2E
+
+FASE 3 (pendente)
+  Transcriptor + Download → Cron → Scout → Publish auto → Scheduling
 ```
-
-**Dois trilhos paralelos** após MV1:
-- Trilho Pipeline: MV2 → MV3, MV4, MV9
-- Trilho Renderer: MV5 → MV6 → MV7 → MV8

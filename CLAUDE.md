@@ -27,27 +27,19 @@
 **Múltiplos terminais Claude Code rodam em paralelo neste projeto.**
 
 **ANTES de começar qualquer trabalho:**
-1. Ler `ROADMAP.md` — ver qual MV está livre (status `pendente`)
-2. Marcar a MV que vai trabalhar como `em andamento` no ROADMAP.md
-3. Trabalhar APENAS nos arquivos da sua MV (paths listados no ROADMAP)
+1. Ler `ROADMAP.md` — ver qual tarefa está livre (status `pendente`)
+2. Marcar como `em andamento` no ROADMAP.md
+3. Trabalhar APENAS nos arquivos da sua tarefa
 4. Ao terminar, marcar como `concluída` no ROADMAP.md
 
 **Regras de conflito:**
-- NUNCA editar arquivo que pertence a outra MV em andamento
-- Se precisar de algo que outra MV ainda não entregou, espere ou peça ao usuário
+- NUNCA editar arquivo que outro agente está trabalhando
 - `shared/` pode ser editado por qualquer agente, mas com cuidado (ler antes de editar)
-- Em caso de dúvida, pergunte ao usuário em vez de adivinhar
-
-**Formato de marcação no ROADMAP.md:**
-```
-## MV1 — [concluída]        ← já terminada
-## MV2 — [em andamento]     ← alguém está trabalhando
-## MV3 — [pendente]         ← livre pra pegar
-```
+- Em caso de dúvida, pergunte ao usuário
 
 ## Visão
 
-**Máquina de conteúdo 24/7.** Pega lives do YouTube, transforma em Shorts/Reels com motion design gerado por IA, publica automaticamente. Roda na VPS de produção 24h.
+**Máquina de conteúdo 24/7.** Pega lives do YouTube, transforma em Shorts/Reels com motion design gerado por IA, publica automaticamente. Roda na VPS 76 em produção.
 
 ## Arquitetura — 2 Projetos + Shared
 
@@ -57,12 +49,13 @@ emailhacker-viral/
 ├── pipeline/                 ← PROJETO 1: Orquestrador
 │   ├── src/
 │   │   ├── index.ts          — HTTP server (porta 3200, /health, /webhook/deploy)
-│   │   ├── config.ts         — importa de shared/config
-│   │   ├── cli.ts            — invocação manual: npx tsx src/cli.ts <video-id>
+│   │   ├── pipeline.ts       — Orquestrador master (conecta todos os passos)
+│   │   ├── cli.ts            — CLI: npx tsx src/cli.ts <video-id> [transcript]
+│   │   ├── config.ts         — Re-export de shared/config
 │   │   ├── processors/
 │   │   │   ├── download.ts   — yt-dlp → source.mp4
-│   │   │   ├── analyze.ts    — Claude Haiku → seleciona 8 melhores trechos
-│   │   │   ├── cut.ts        — ffmpeg → corta clip do source
+│   │   │   ├── analyze.ts    — Claude Haiku → trechos virais (score 0-100)
+│   │   │   ├── cut.ts        — ffmpeg → corta clip
 │   │   │   ├── silence.ts    — ffmpeg silencedetect → remove silêncios >2s
 │   │   │   └── webcam.ts     — ffmpeg crop fixo → face.mp4 (1080x960)
 │   │   ├── publishers/
@@ -74,33 +67,44 @@ emailhacker-viral/
 │   ├── package.json
 │   └── tsconfig.json
 │
-├── renderer/                 ← PROJETO 2: Remotion puro + DIRECTOR
+├── renderer/                 ← PROJETO 2: DIRECTOR + Remotion + Compose
 │   ├── src/
-│   │   ├── index.ts          — BullMQ consumer (consome 1 job por vez)
-│   │   ├── director.ts       — Claude Code CLI + skill remotion-best-practices → gera overlay.tsx
-│   │   ├── render.ts         — npx remotion render overlay.tsx → overlay.mp4
-│   │   └── compose.ts        — ffmpeg vstack overlay.mp4 + face.mp4 → final.mp4
-│   ├── package.json          — remotion, @remotion/cli (Remotion = só dependência npm)
+│   │   ├── index.ts          — BullMQ consumer (1 job por vez)
+│   │   ├── director.ts       — DIRECTOR v7: Haiku JSON (80%) ou Claude Code TSX (20%)
+│   │   ├── render.ts         — npx remotion render → overlay.mp4
+│   │   ├── compose.ts        — ffmpeg vstack overlay + face → final.mp4
+│   │   ├── ClipTemplate.tsx  — Composição Remotion com componentes
+│   │   └── components/       — Biblioteca visual (AppWindow, Terminal, DiffView, etc)
+│   │       ├── tokens.ts     — Design tokens (cores, fonts, springs)
+│   │       ├── SceneData.ts  — Tipos (Scene, ClipData)
+│   │       ├── AppWindow.tsx
+│   │       ├── PromptInput.tsx
+│   │       ├── ToolCalls.tsx
+│   │       ├── DiffView.tsx
+│   │       ├── Terminal.tsx
+│   │       ├── DataTable.tsx
+│   │       ├── Captions.tsx
+│   │       ├── SceneBackground.tsx
+│   │       └── StatusBar.tsx
+│   ├── package.json
 │   └── tsconfig.json
 │
-├── shared/                   ← Código compartilhado entre os 2 projetos
-│   ├── types/
-│   │   └── job.ts            — Segment, JobData, RenderJob, PublishResult
-│   ├── config.ts             — env vars + leitura ~/.secrets/emailhacker
-│   ├── queue.ts              — definição da fila BullMQ 'render-jobs'
-│   └── lib/
-│       └── ffmpeg.ts         — wrapper ffmpeg/ffprobe
+├── shared/                   ← Código compartilhado
+│   ├── types/job.ts          — Segment, JobData, RenderJob, PublishResult
+│   ├── config.ts             — Env vars + ~/.secrets/emailhacker
+│   ├── queue.ts              — BullMQ fila 'render-jobs'
+│   └── lib/ffmpeg.ts         — Wrapper ffmpeg/ffprobe
 │
 ├── scripts/
-│   ├── setup.sh              — provisiona VPS (Node 22, ffmpeg, yt-dlp, Chromium, PM2)
+│   ├── setup.sh              — Provisiona VPS (Node 22, ffmpeg, yt-dlp, Chromium, PM2)
 │   └── deploy.sh             — git pull → build ambos → pm2 restart
 │
 ├── docs/
-│   ├── PIPELINE-V1.md        — documentação do pipeline de 11 passos
-│   └── DIRECTOR-V5-SPEC.md   — spec do DIRECTOR v5 (componentes sob medida)
+│   ├── PIPELINE-V1.md        — Documentação do pipeline de 11 passos
+│   └── DIRECTOR-V5-SPEC.md   — Spec histórica do DIRECTOR v5
 │
-├── ROADMAP.md                — 10 microvitórias com status (coordenação multiagente)
-├── ecosystem.config.cjs      — PM2: pipeline (porta 3200) + renderer (consumer)
+├── ROADMAP.md                — Fases e tarefas (coordenação multiagente)
+├── ecosystem.config.cjs      — PM2: pipeline + renderer
 └── .gitignore
 ```
 
@@ -110,63 +114,64 @@ emailhacker-viral/
 Pipeline                              Renderer
 ────────                              ────────
 1. Download (yt-dlp)
-2. Analyze (Haiku → 8 clips)
+2. Analyze (Haiku → trechos virais)
 3. Cut (ffmpeg)
-4. Silence cut (ffmpeg)
+4. Silence removal (ffmpeg)
 5. Webcam crop (ffmpeg)
 6. Whisper (OpenAI → timestamps)
-                                      
-   ──── enfileira job BullMQ ────►    7. DIRECTOR v5 (Claude Code + skill)
-                                      8. Remotion render (puro, overlay.tsx → overlay.mp4)
-   ◄──── recebe final.mp4 ────       9. Compose (ffmpeg vstack → final.mp4)
+
+   ──── enfileira BullMQ ────►        7. DIRECTOR v7 (Haiku JSON ou Claude Code TSX)
+                                      8. Remotion render (overlay.mp4)
+   ◄──── recebe final.mp4 ────       9. Compose (ffmpeg vstack → 1080x1920)
 
 10. Scout (Haiku → copy)
 11. Publish (YouTube + Instagram)
 ```
 
-**Remotion é PURO.** Zero código custom commitado. Só pacotes npm.
-O DIRECTOR gera o .tsx completo (auto-contido, com registerRoot).
-O Renderer renderiza e compõe. Pipeline só orquestra e publica.
+## DIRECTOR v7 — Híbrido
 
-## DIRECTOR v5 — Regra Crítica
+| Modo | Uso | Ferramenta | Tempo |
+|------|-----|-----------|-------|
+| **Template** (80%) | Contextos padrão | Haiku → JSON de cenas → ClipTemplate | ~45s |
+| **Custom** (20%) | Visuais únicos | Claude Code CLI → TSX completo | ~90-150s |
 
-O DIRECTOR NÃO usa componentes fixos. Ele CRIA um .tsx NOVO pra cada clip.
-Usa a skill `remotion-best-practices` (.agents/skills/remotion-best-practices/rules/).
-O motion design MOSTRA o que acontece na tela, NÃO é legenda da fala.
-Spec completa: `docs/DIRECTOR-V5-SPEC.md`
+Template mode gera JSON com cenas tipadas (prompt, response, diff, terminal, table, text).
+ClipTemplate.tsx renderiza usando a biblioteca de componentes.
 
 ## Regras Remotion (NUNCA violar)
 
-- **PROIBIDO** CSS transitions, CSS animations, classes Tailwind de animação (`animate-*`)
+- **PROIBIDO** CSS transitions, CSS animations, classes Tailwind (`animate-*`)
 - **OBRIGATÓRIO** `useCurrentFrame()` + `interpolate()` ou `spring()` para TODA animação
 - **OBRIGATÓRIO** `extrapolateRight: 'clamp'` em interpolações
 - **OBRIGATÓRIO** audio via `<Audio>` de `@remotion/media`
-- Skill completa: `.agents/skills/remotion-best-practices/rules/`
+- Skill: `.agents/skills/remotion-best-practices/rules/`
 
 ## Infra
 
-- **VPS:** Hostinger KVM1 (1 vCPU, 4GB RAM, 50GB NVMe, Ubuntu 24.04)
+- **VPS 76:** Hostinger KVM1 (1 vCPU, 4GB RAM, 50GB NVMe, Ubuntu 24.04)
 - **PM2:** pipeline (porta 3200, max 1.5GB) + renderer (consumer, max 2GB)
 - **HTTPS:** publisher.emailhacker.ai (Caddy reverse proxy)
+- **Redis:** local, noeviction, 256MB
 - **Remotion:** v4, --concurrency=1 --gl=angle-egl
-- **Redis:** local, maxmemory 256MB (BullMQ)
 - **Secrets:** `~/.secrets/emailhacker` (local/VPS) ou env vars (Docker/Coolify)
+- **Transcriptor:** `vsl.emailhacker.ai` (VPS 72) — transcrição YouTube via proxy
 
 ## Comandos
 
 ```bash
-# Dev pipeline
+# Dev
 cd pipeline && npx tsx watch src/index.ts
-
-# Dev renderer
 cd renderer && npx tsx watch src/index.ts
 
-# Build ambos
+# Build
 cd pipeline && npx tsc && cd ../renderer && npx tsc
 
-# Processar live manualmente
-cd pipeline && npx tsx src/cli.ts <youtube-url-ou-id>
+# CLI
+cd pipeline && npx tsx src/cli.ts <video-id> [transcript.txt]
 
-# Testar publicação
+# Teste publicação
 cd pipeline && npx tsx src/test-publish.ts <youtube|instagram|all> <video.mp4>
+
+# Deploy VPS
+bash scripts/deploy.sh
 ```

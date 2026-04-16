@@ -1,28 +1,33 @@
 import { execFile } from 'node:child_process'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
+import type { ClipData } from './components/SceneData'
 
 /**
- * DIRECTOR v5 — MV6
+ * DIRECTOR v7 — Híbrido
  *
- * Gera componente Remotion .tsx AUTO-CONTIDO pra cada clip via Claude Code CLI.
- * O arquivo gerado inclui registerRoot + Composition e pode ser renderizado
- * diretamente pelo Remotion sem projeto externo.
+ * Abordagem: gerar JSON de cenas (80% dos casos) ou .tsx custom (20%).
  *
- * Claude Code roda localmente (VPS com OAuth) — custo zero de API key.
- * A skill remotion-best-practices é injetada via prompt (Read das rules).
+ * Fluxo padrão (template):
+ *   1. Claude Haiku analisa transcript + contexto
+ *   2. Retorna JSON com cenas (prompt, response, diff, terminal, etc)
+ *   3. ClipTemplate.tsx renderiza usando biblioteca de componentes
+ *
+ * Fluxo custom (fallback):
+ *   1. Claude Code CLI gera .tsx completo (comportamento antigo)
+ *   2. Usado quando o contexto pede algo visual único
+ *
+ * Ambos usam o design system EmailHacker (tokens.ts).
  */
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Detecta path das skills Remotion conforme ambiente (local dev vs VPS).
- */
 function getSkillsPath(): string {
   const paths = [
     resolve(process.cwd(), '..', '.agents/skills/remotion-best-practices'),
+    resolve(process.cwd(), '..', '.claude/skills/remotion-best-practices'),
     '/root/.claude/skills/remotion-best-practices',
   ]
   for (const p of paths) {
@@ -31,248 +36,338 @@ function getSkillsPath(): string {
   return paths[0]
 }
 
-/**
- * Monta o prompt completo pro DIRECTOR.
- *
- * Instrui o Claude Code a:
- * 1. Ler as rules essenciais de Remotion
- * 2. Gerar um .tsx AUTO-CONTIDO com registerRoot + Composition
- * 3. Incluir captions sincronizadas no bottom edge
- */
-function buildPrompt(opts: {
+/** Path do ClipTemplate.tsx (composição fixa com componentes) */
+function getTemplatePath(): string {
+  const paths = [
+    resolve(process.cwd(), 'src', 'ClipTemplate.tsx'),
+    resolve(__dirname, 'ClipTemplate.tsx'),
+  ]
+  for (const p of paths) {
+    if (existsSync(p)) return p
+  }
+  return paths[0]
+}
+
+// ---------------------------------------------------------------------------
+// Prompt para geração de JSON de cenas
+// ---------------------------------------------------------------------------
+
+function buildScenePrompt(opts: { transcript: string; context: string }): string {
+  return `Você é um DIRECTOR de motion design para YouTube Shorts. Analise o contexto e transcript abaixo e crie uma sequência de cenas que mostre visualmente o que está acontecendo.
+
+CONTEXTO: ${opts.context}
+TRANSCRIPT: ${opts.transcript}
+
+Retorne APENAS um JSON válido com o formato abaixo. Sem explicação, sem markdown.
+
+{
+  "windowTitle": "nome do projeto",
+  "branch": "claude/feature-name",
+  "model": "Opus 4.6",
+  "statusItems": ["Local", "main"],
+  "scenes": [
+    // CENA TIPO 1: Prompt (usuário digitando)
+    { "type": "prompt", "text": "o que o usuário está fazendo/pedindo" },
+
+    // CENA TIPO 2: Resposta com tool calls
+    { "type": "response", "text": "resumo da resposta do Claude", "toolCalls": [
+      { "type": "Write", "file": "arquivo.ts", "added": 127 },
+      { "type": "Edit", "file": "outro.ts", "added": 5, "removed": 2 }
+    ]},
+
+    // CENA TIPO 3: Diff de código
+    { "type": "diff", "file": "arquivo.ts", "branch": "claude/feature", "added": 85, "removed": 12, "lines": [
+      { "type": "add", "text": "const result = await process()", "lineNumber": 42 },
+      { "type": "remove", "text": "// TODO: implementar", "lineNumber": 41 }
+    ]},
+
+    // CENA TIPO 4: Terminal
+    { "type": "terminal", "title": "Terminal", "lines": [
+      { "type": "command", "text": "npm run build" },
+      { "type": "success", "text": "Build completed in 2.3s" }
+    ]},
+
+    // CENA TIPO 5: Tabela de dados
+    { "type": "table", "headers": ["campo", "valor"], "rows": [["status", "ativo"]] },
+
+    // CENA TIPO 6: Texto hero (momentos de impacto)
+    { "type": "text", "title": "Título impactante", "subtitle": "detalhe" }
+  ]
+}
+
+REGRAS:
+- Use 3-5 cenas por clip (nem mais, nem menos)
+- Comece com prompt ou text (hook visual)
+- Mostre o que está ACONTECENDO, não a fala
+- Tool calls devem ser realistas (Write, Edit, Read, Bash, Agent)
+- Código no diff deve ser plausível pro contexto
+- Terminal mostra comandos reais sendo executados
+- Termine com algo visual forte (diff, terminal com sucesso, ou text de impacto)
+- windowTitle deve refletir o projeto sendo discutido
+- branch deve ter formato claude/nome-descritivo`
+}
+
+// ---------------------------------------------------------------------------
+// Prompt para geração de TSX custom (fallback 20%)
+// ---------------------------------------------------------------------------
+
+function buildCustomPrompt(opts: {
   transcript: string
   context: string
   outputPath: string
   skillsPath: string
 }): string {
-  const { transcript, context } = opts
+  return `Você é um SENIOR MOTION DESIGNER. Crie um componente Remotion único pra este clip.
 
-  return `Gere um componente Remotion .tsx completo e auto-contido. Apenas código, sem explicação.
+ANTES DE ESCREVER CÓDIGO, leia estas rules obrigatórias:
+- ${opts.skillsPath}/rules/animations.md
+- ${opts.skillsPath}/rules/timing.md
+- ${opts.skillsPath}/rules/text-animations.md
+- ${opts.skillsPath}/rules/sequencing.md
 
-CONTEXTO: ${context}
-TRANSCRIPT: ${transcript}
+CONTEXTO: ${opts.context}
+TRANSCRIPT: ${opts.transcript}
 
-Regras:
-- Canvas 1080x960, 30fps. Calcule TOTAL_FRAMES (~3 palavras/segundo do transcript).
+REGRAS DO COMPONENTE:
+- Canvas 1080x960, 30fps. Calcule TOTAL_FRAMES (~3 palavras/segundo).
 - Imports de 'remotion' e 'react'. Componente ClipOverlay: React.FC.
-- useCurrentFrame() + interpolate(frame, [...], [...], {extrapolateRight:'clamp'}) pra tudo.
-- spring({frame, fps, config:{damping:12}}) pra entradas.
-- <Sequence from={f} durationInFrames={d}> pra organizar fases.
-- Motion design que MOSTRA visualmente o contexto (editor, terminal, gráficos) — NÃO é legenda.
-- Captions no bottom 120px: palavras do transcript, ativa em #facc15, rest #e5e5e5, monospace 44px bold.
-- Cores: accent #ef4444, text #e5e5e5, success #22c55e, bg #0a0a0a.
+- useCurrentFrame() + interpolate(frame, [...], [...], {extrapolateRight:'clamp'})
+- spring({frame, fps, config:{damping:12}}) pra entradas
+- <Sequence from={f} durationInFrames={d}> pra organizar fases
+- Motion design que MOSTRA visualmente o contexto — NÃO é legenda
+- Cores: accent #ef4444, text #e5e5e5, success #16a34a, bg #0a0a0a
+- Font: monospace (SF Mono, Fira Code, JetBrains Mono)
 - Textos mínimo 48px. Preencher 90%+ da tela.
-- PROIBIDO: CSS transitions, useState, useEffect, assets externos.
-- Última linha: registerRoot com Composition id="Overlay" width=1080 height=960 fps=30.
+- PROIBIDO: CSS transitions, useState, useEffect, assets externos
+- Última linha: registerRoot com Composition id="Overlay" width=1080 height=960 fps=30
 
-Retorne APENAS código TSX. Comece com import, termine com registerRoot.`
+Escreva o arquivo completo em ${opts.outputPath}. APENAS código TSX.`
 }
 
 // ---------------------------------------------------------------------------
-// Core: gera overlay
+// Core: gera overlay via template (JSON) — 80% dos casos
 // ---------------------------------------------------------------------------
 
-export async function generateOverlay(opts: {
+export async function generateOverlayFromTemplate(opts: {
   clipId: string
   transcript: string
   context: string
-  outputPath: string
-}): Promise<{ success: boolean; componentPath: string; error?: string }> {
-  const skillsPath = getSkillsPath()
-  const prompt = buildPrompt({
+  outputDir: string
+}): Promise<{ success: boolean; templatePath: string; propsPath: string; error?: string }> {
+  const propsPath = resolve(opts.outputDir, `clip-${opts.clipId}-props.json`)
+  const templatePath = getTemplatePath()
+
+  // Garantir diretório
+  const dir = dirname(propsPath)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+
+  console.log(`[director] Gerando cenas via Haiku pra clip ${opts.clipId}...`)
+
+  const prompt = buildScenePrompt({
     transcript: opts.transcript,
     context: opts.context,
-    outputPath: opts.outputPath,
-    skillsPath,
   })
 
-  // Garantir que o diretório de destino existe
-  const dir = dirname(opts.outputPath)
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true })
-  }
-
   return new Promise((resolvePromise) => {
-    console.log(`[director] Chamando Claude Code pra clip ${opts.clipId}...`)
-
     const child = execFile(
       'claude',
-      [
-        '--print',
-        '--model', 'haiku',
-      ],
-      {
-        timeout: 300_000,
-        maxBuffer: 2 * 1024 * 1024,
-      },
-      (err, stdout, stderr) => {
+      ['--print', '--model', 'sonnet'],
+      { timeout: 120_000, maxBuffer: 1024 * 1024 },
+      (err, stdout) => {
         if (err) {
-          console.error(`[director] Erro na execução: ${err.message}`)
-          resolvePromise({
-            success: false,
-            componentPath: opts.outputPath,
-            error: err.message,
-          })
+          console.error(`[director] Erro Haiku: ${err.message}`)
+          resolvePromise({ success: false, templatePath, propsPath, error: err.message })
           return
         }
 
-        // Verificar se o arquivo foi criado pelo Claude via Write tool
-        if (existsSync(opts.outputPath)) {
-          const code = readFileSync(opts.outputPath, 'utf-8')
-          if (validateComponent(code)) {
-            console.log(
-              `[director] Componente gerado: ${opts.outputPath} (${code.split('\n').length} linhas)`
-            )
-            resolvePromise({ success: true, componentPath: opts.outputPath })
-          } else {
-            resolvePromise({
-              success: false,
-              componentPath: opts.outputPath,
-              error: 'Componente gerado mas falhou na validação básica',
-            })
-          }
+        // Extrair JSON da resposta
+        const clipData = extractJson(stdout)
+        if (!clipData) {
+          console.error('[director] Haiku não retornou JSON válido')
+          resolvePromise({ success: false, templatePath, propsPath, error: 'JSON inválido' })
           return
         }
 
-        // Fallback: Claude pode ter retornado o código no stdout
-        const code = extractTsxFromOutput(stdout)
-        if (code) {
-          writeFileSync(opts.outputPath, code)
-          console.log(
-            `[director] Componente extraído do stdout: ${opts.outputPath} (${code.split('\n').length} linhas)`
-          )
-          resolvePromise({ success: true, componentPath: opts.outputPath })
-        } else {
-          console.error('[director] Componente não gerado — nem arquivo nem stdout válido')
-          resolvePromise({
-            success: false,
-            componentPath: opts.outputPath,
-            error: 'Componente não gerado',
-          })
+        // Validar estrutura mínima
+        if (!clipData.scenes || !Array.isArray(clipData.scenes) || clipData.scenes.length === 0) {
+          console.error('[director] JSON sem scenes válidas')
+          resolvePromise({ success: false, templatePath, propsPath, error: 'Sem scenes' })
+          return
         }
+
+        // Salvar props JSON
+        writeFileSync(propsPath, JSON.stringify(clipData, null, 2))
+        console.log(`[director] ${clipData.scenes.length} cenas geradas → ${propsPath}`)
+
+        resolvePromise({ success: true, templatePath, propsPath })
       }
     )
 
-    // Enviar prompt via stdin
     child.stdin?.write(prompt)
     child.stdin?.end()
   })
 }
 
 // ---------------------------------------------------------------------------
-// Validação básica do componente gerado
+// Core: gera overlay custom via Claude Code CLI — 20% dos casos
 // ---------------------------------------------------------------------------
 
-/**
- * Validação rápida: verifica que o código tem as peças fundamentais.
- * Não substitui compilação, mas filtra lixo óbvio.
- */
-function validateComponent(code: string): boolean {
-  const requiredPatterns = [
-    'useCurrentFrame',
-    'interpolate',
-    'registerRoot',
-    'Composition',
-    'ClipOverlay',
-  ]
+export async function generateOverlayCustom(opts: {
+  clipId: string
+  transcript: string
+  context: string
+  outputPath: string
+}): Promise<{ success: boolean; componentPath: string; error?: string }> {
+  const skillsPath = getSkillsPath()
+  const prompt = buildCustomPrompt({
+    transcript: opts.transcript,
+    context: opts.context,
+    outputPath: opts.outputPath,
+    skillsPath,
+  })
 
-  for (const pattern of requiredPatterns) {
-    if (!code.includes(pattern)) {
-      console.warn(`[director] Validação falhou: falta '${pattern}'`)
-      return false
-    }
-  }
+  const dir = dirname(opts.outputPath)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 
-  // Verificar padrões proibidos
-  const forbiddenPatterns = [
-    { pattern: 'css-transition', label: 'CSS transition' },
-    { pattern: 'animation-name', label: 'CSS animation-name' },
-    { pattern: 'animate-', label: 'Tailwind animate class' },
-    { pattern: 'useState', label: 'useState hook' },
-    { pattern: 'useEffect', label: 'useEffect hook' },
-  ]
+  return new Promise((resolvePromise) => {
+    console.log(`[director] Gerando TSX custom clip ${opts.clipId} via Claude Code...`)
 
-  for (const { pattern, label } of forbiddenPatterns) {
-    if (code.includes(pattern)) {
-      console.warn(`[director] Validação falhou: encontrou padrão proibido '${label}'`)
-      return false
-    }
-  }
+    const child = execFile(
+      'claude',
+      ['--print', '--model', 'sonnet', '--allowedTools', 'Read,Write'],
+      { timeout: 300_000, maxBuffer: 2 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err) {
+          resolvePromise({ success: false, componentPath: opts.outputPath, error: err.message })
+          return
+        }
 
-  return true
-}
+        if (existsSync(opts.outputPath)) {
+          const code = readFileSync(opts.outputPath, 'utf-8')
+          if (validateComponent(code)) {
+            resolvePromise({ success: true, componentPath: opts.outputPath })
+            return
+          }
+        }
 
-/**
- * Tenta extrair código .tsx do stdout do Claude Code.
- * O Claude pode retornar o código envolvido em markdown fences ou direto.
- */
-function extractTsxFromOutput(stdout: string): string | null {
-  const trimmed = stdout.trim()
+        const code = extractTsxFromOutput(stdout)
+        if (code) {
+          writeFileSync(opts.outputPath, code)
+          resolvePromise({ success: true, componentPath: opts.outputPath })
+        } else {
+          resolvePromise({ success: false, componentPath: opts.outputPath, error: 'TSX não gerado' })
+        }
+      }
+    )
 
-  // Se o stdout inteiro parece código TSX válido
-  if (trimmed.includes('useCurrentFrame') && trimmed.includes('registerRoot')) {
-    // Remover fences de markdown se presentes
-    const withoutFences = trimmed
-      .replace(/^```(?:tsx|typescript|ts)?\n?/m, '')
-      .replace(/\n?```\s*$/m, '')
-      .trim()
-
-    if (validateComponent(withoutFences)) {
-      return withoutFences
-    }
-  }
-
-  // Tentar extrair bloco de código de dentro de markdown
-  const codeBlockMatch = trimmed.match(/```(?:tsx|typescript|ts)?\n([\s\S]+?)```/)
-  if (codeBlockMatch) {
-    const extracted = codeBlockMatch[1].trim()
-    if (validateComponent(extracted)) {
-      return extracted
-    }
-  }
-
-  return null
+    child.stdin?.write(prompt)
+    child.stdin?.end()
+  })
 }
 
 // ---------------------------------------------------------------------------
-// Retry wrapper
+// Orchestrator: tenta template primeiro, fallback pra custom
 // ---------------------------------------------------------------------------
 
 const MAX_ATTEMPTS = 2
 
-/**
- * Gera overlay com retry (máximo 2 tentativas).
- * Retorna o path do componente gerado ou null se falhar.
- * Pipeline pode usar fallback genérico quando retorna null.
- */
 export async function generateOverlayWithRetry(opts: {
   clipId: string
   transcript: string
   context: string
   outputDir: string
-}): Promise<string | null> {
-  const outputPath = resolve(opts.outputDir, `Clip${opts.clipId}Overlay.tsx`)
+}): Promise<{ componentPath: string; propsPath?: string } | null> {
 
+  // Tentativa 1: Template (JSON + componentes prontos)
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    console.log(
-      `[director] Gerando componente clip ${opts.clipId} (tentativa ${attempt}/${MAX_ATTEMPTS})...`
-    )
+    console.log(`[director] Template — tentativa ${attempt}/${MAX_ATTEMPTS} clip ${opts.clipId}`)
 
-    const result = await generateOverlay({
-      clipId: opts.clipId,
-      transcript: opts.transcript,
-      context: opts.context,
-      outputPath,
-    })
+    const result = await generateOverlayFromTemplate(opts)
 
     if (result.success) {
-      console.log(`[director] Clip ${opts.clipId} — componente pronto: ${result.componentPath}`)
-      return result.componentPath
+      console.log(`[director] Clip ${opts.clipId} — template pronto`)
+      return { componentPath: result.templatePath, propsPath: result.propsPath }
     }
 
-    console.warn(`[director] Tentativa ${attempt} falhou: ${result.error}`)
+    console.warn(`[director] Template tentativa ${attempt} falhou: ${result.error}`)
   }
 
-  console.error(`[director] Clip ${opts.clipId} — esgotou tentativas, retornando null (fallback)`)
+  // Tentativa 2: Custom TSX (fallback)
+  console.log(`[director] Clip ${opts.clipId} — tentando geração custom...`)
+  const customPath = resolve(opts.outputDir, `Clip${opts.clipId}Overlay.tsx`)
+
+  const customResult = await generateOverlayCustom({
+    clipId: opts.clipId,
+    transcript: opts.transcript,
+    context: opts.context,
+    outputPath: customPath,
+  })
+
+  if (customResult.success) {
+    console.log(`[director] Clip ${opts.clipId} — custom TSX gerado`)
+    return { componentPath: customResult.componentPath }
+  }
+
+  console.error(`[director] Clip ${opts.clipId} — todas as tentativas falharam`)
+  return null
+}
+
+// ---------------------------------------------------------------------------
+// Helpers de parsing e validação
+// ---------------------------------------------------------------------------
+
+function extractJson(text: string): ClipData | null {
+  const trimmed = text.trim()
+
+  // Tentar parse direto
+  try {
+    return JSON.parse(trimmed)
+  } catch {}
+
+  // Extrair JSON de markdown fences
+  const fenceMatch = trimmed.match(/```(?:json)?\n?([\s\S]+?)```/)
+  if (fenceMatch) {
+    try {
+      return JSON.parse(fenceMatch[1].trim())
+    } catch {}
+  }
+
+  // Extrair primeiro objeto JSON do texto
+  const objMatch = trimmed.match(/\{[\s\S]*\}/)
+  if (objMatch) {
+    try {
+      return JSON.parse(objMatch[0])
+    } catch {}
+  }
+
+  return null
+}
+
+function validateComponent(code: string): boolean {
+  const required = ['useCurrentFrame', 'interpolate', 'registerRoot', 'Composition', 'ClipOverlay']
+  for (const r of required) {
+    if (!code.includes(r)) return false
+  }
+  const forbidden = ['css-transition', 'animation-name', 'animate-', 'useState', 'useEffect']
+  for (const f of forbidden) {
+    if (code.includes(f)) return false
+  }
+  return true
+}
+
+function extractTsxFromOutput(stdout: string): string | null {
+  const trimmed = stdout.trim()
+
+  if (trimmed.includes('useCurrentFrame') && trimmed.includes('registerRoot')) {
+    const clean = trimmed.replace(/^```(?:tsx|typescript|ts)?\n?/m, '').replace(/\n?```\s*$/m, '').trim()
+    if (validateComponent(clean)) return clean
+  }
+
+  const match = trimmed.match(/```(?:tsx|typescript|ts)?\n([\s\S]+?)```/)
+  if (match) {
+    const extracted = match[1].trim()
+    if (validateComponent(extracted)) return extracted
+  }
+
   return null
 }

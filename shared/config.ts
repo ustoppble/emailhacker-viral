@@ -43,6 +43,8 @@ export const config = {
   dataDir: env('DATA_DIR', resolve(process.cwd(), 'data')),
   cleanupAfterHours: Number(env('CLEANUP_AFTER_HOURS', '24')),
   maxShortsPerLive: Number(env('MAX_SHORTS_PER_LIVE', '8')),
+  minViralityScore: Number(env('MIN_VIRALITY_SCORE', '75')),
+  maxTranscriptChars: Number(env('MAX_TRANSCRIPT_CHARS', '15000')),
   anthropicApiKey: env('ANTHROPIC_API_KEY'),
   r2: {
     accountId: env('R2_ACCOUNT_ID'),

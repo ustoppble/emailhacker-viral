@@ -6,31 +6,32 @@ import { resolve, dirname } from 'node:path'
 const exec = promisify(execFile)
 
 /**
- * Renderiza um .tsx gerado pelo DIRECTOR usando Remotion CLI puro.
- * O .tsx é auto-contido (registerRoot + Composition + componente).
- * Remotion não tem código custom — é só o runtime.
+ * Renderiza um overlay usando Remotion CLI.
+ *
+ * Dois modos:
+ * 1. Template + props: ClipTemplate.tsx + clip-props.json (DIRECTOR v7 padrão)
+ * 2. Standalone: .tsx auto-contido (DIRECTOR v7 custom fallback)
  */
 export async function renderOverlay(opts: {
-  componentPath: string   // path do .tsx gerado pelo DIRECTOR
-  outputPath: string      // onde salvar o overlay.mp4
-  compositionId?: string  // default: 'Overlay' (o DIRECTOR gera com esse id)
+  componentPath: string
+  outputPath: string
+  propsPath?: string
+  compositionId?: string
 }): Promise<string> {
-  const { componentPath, outputPath, compositionId = 'Overlay' } = opts
+  const { componentPath, outputPath, propsPath, compositionId = 'Overlay' } = opts
 
   if (!existsSync(componentPath)) {
     throw new Error(`Componente não encontrado: ${componentPath}`)
   }
 
-  // Garantir que o diretório de saída existe
   const outDir = dirname(outputPath)
-  if (!existsSync(outDir)) {
-    mkdirSync(outDir, { recursive: true })
-  }
+  if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true })
 
   console.log(`[render] Renderizando ${componentPath} → ${outputPath}`)
+  if (propsPath) console.log(`[render] Props: ${propsPath}`)
   const startTime = Date.now()
 
-  // Resolver o binário do Remotion — preferir local, fallback pra npx
+  // Resolver binário do Remotion
   const localBin = resolve(process.cwd(), 'node_modules', '.bin', 'remotion')
   const useNpx = !existsSync(localBin)
   const bin = useNpx ? 'npx' : localBin
@@ -41,15 +42,19 @@ export async function renderOverlay(opts: {
     compositionId,
     outputPath,
     '--codec', 'h264',
-    '--concurrency', '1',          // VPS 4GB RAM — 1 thread
-    '--gl', 'angle-egl',           // headless rendering
-    '--log', 'warn',               // menos output
+    '--concurrency', '1',
+    '--gl', 'angle-egl',
+    '--log', 'warn',
   ]
 
-  // Se estiver usando npx, prefixar com 'remotion'
+  // Se tem props JSON, passar via --props
+  if (propsPath && existsSync(propsPath)) {
+    remotionArgs.push('--props', propsPath)
+  }
+
   const args = useNpx ? ['remotion', ...remotionArgs] : remotionArgs
 
-  // Se estiver na VPS, usar o Chromium do sistema
+  // Chromium da VPS
   const env = { ...process.env }
   if (existsSync('/usr/bin/chromium-browser')) {
     env.PUPPETEER_EXECUTABLE_PATH = '/usr/bin/chromium-browser'
@@ -58,11 +63,11 @@ export async function renderOverlay(opts: {
   }
 
   try {
-    const { stdout, stderr } = await exec(bin, args, {
-      timeout: 300_000,           // 5 min timeout
+    const { stderr } = await exec(bin, args, {
+      timeout: 300_000,
       maxBuffer: 50 * 1024 * 1024,
       env,
-      cwd: process.cwd(),        // renderer/ — onde node_modules está
+      cwd: process.cwd(),
     })
 
     if (stderr) console.log(`[render] ${stderr.trim().substring(0, 200)}`)
