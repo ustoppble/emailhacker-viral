@@ -45,72 +45,27 @@ function buildPrompt(opts: {
   outputPath: string
   skillsPath: string
 }): string {
-  const { transcript, context, outputPath, skillsPath } = opts
-  const rulesDir = `${skillsPath}/rules`
+  const { transcript, context } = opts
 
-  return `Voce é um SENIOR MOTION DESIGNER especializado em Remotion.
+  return `Gere um componente Remotion .tsx completo e auto-contido. Apenas código, sem explicação.
 
-Gere um componente .tsx COMPLETO e AUTO-CONTIDO.
+CONTEXTO: ${context}
+TRANSCRIPT: ${transcript}
 
-O arquivo DEVE conter:
-- Imports de 'remotion': registerRoot, Composition, useCurrentFrame, interpolate, spring, useVideoConfig, Sequence, AbsoluteFill
-- Imports de 'react': React
-- Um componente ClipOverlay: React.FC que renderiza o overlay animado
-- Um componente CaptionsBar: React.FC que renderiza as legendas sincronizadas
-- No FINAL do arquivo: registerRoot(() => { return React.createElement(Composition, { id: "Overlay", component: ClipOverlay, width: 1080, height: 960, fps: 30, durationInFrames: TOTAL_FRAMES }); });
+Regras:
+- Canvas 1080x960, 30fps. Calcule TOTAL_FRAMES (~3 palavras/segundo do transcript).
+- Imports de 'remotion' e 'react'. Componente ClipOverlay: React.FC.
+- useCurrentFrame() + interpolate(frame, [...], [...], {extrapolateRight:'clamp'}) pra tudo.
+- spring({frame, fps, config:{damping:12}}) pra entradas.
+- <Sequence from={f} durationInFrames={d}> pra organizar fases.
+- Motion design que MOSTRA visualmente o contexto (editor, terminal, gráficos) — NÃO é legenda.
+- Captions no bottom 120px: palavras do transcript, ativa em #facc15, rest #e5e5e5, monospace 44px bold.
+- Cores: accent #ef4444, text #e5e5e5, success #22c55e, bg #0a0a0a.
+- Textos mínimo 48px. Preencher 90%+ da tela.
+- PROIBIDO: CSS transitions, useState, useEffect, assets externos.
+- Última linha: registerRoot com Composition id="Overlay" width=1080 height=960 fps=30.
 
-CONTEXTO DO CLIP (o que está acontecendo na tela):
-${context}
-
-TRANSCRIPT (fala do streamer — usar pra sincronizar animações e captions):
-${transcript}
-
-REGRAS OBRIGATÓRIAS:
-
-1. CANVAS: 1080x960px, 30fps. Calcule TOTAL_FRAMES baseado na duração do transcript (estimativa: ~3 palavras/segundo).
-
-2. MOTION DESIGN — o overlay MOSTRA visualmente o que acontece na tela. NÃO é legenda da fala. Exemplos:
-   - Se fala de email: mostrar envelope animado, inbox, notificação
-   - Se fala de código: mostrar editor estilizado, cursor digitando, syntax highlight
-   - Se fala de números: mostrar contadores animando, gráficos subindo
-   - Preencher 90%+ da tela. Textos mínimo 48px. Impacto mínimo 72px.
-
-3. ANIMAÇÕES:
-   - useCurrentFrame() + interpolate() com extrapolateRight: 'clamp' pra TODA interpolação
-   - spring() de remotion pra TODAS as entradas de elementos
-   - <Sequence> com premountFor pra organizar fases temporais
-   - Tempos em segundos multiplicados por fps do useVideoConfig()
-
-4. CORES:
-   - accent: #ef4444 (vermelho)
-   - texto: #e5e5e5 (branco suave)
-   - sucesso: #22c55e (verde)
-   - destaque caption: #facc15 (amarelo)
-   - bg: transparente (o overlay vai por cima do vídeo)
-
-5. CAPTIONS (últimos 120px do canvas):
-   - Dividir o transcript em palavras
-   - Distribuir as palavras uniformemente ao longo dos frames
-   - Mostrar grupo de 3-5 palavras por vez
-   - Palavra ativa em #facc15 (amarelo), restante em #e5e5e5
-   - Font: monospace, 44px, fontWeight bold
-   - textShadow: '2px 2px 8px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.7)'
-   - Posição: bottom 20px, centralizado horizontalmente
-
-6. PROIBIDO:
-   - CSS transitions, CSS animations, classes animate-* do Tailwind
-   - Assets externos (imagens, fontes, áudio) — tudo inline
-   - useState, useEffect, useRef ou qualquer hook de React além de useCurrentFrame/useVideoConfig
-   - Código fora do arquivo (imports de arquivos locais)
-   - <img>, <video>, <audio> tags HTML
-
-7. ESTRUTURA DO ARQUIVO:
-   - Todas as constantes (TOTAL_FRAMES, COLORS, etc) no topo
-   - Componentes auxiliares antes do ClipOverlay
-   - ClipOverlay como componente principal
-   - registerRoot na última linha
-
-IMPORTANTE: Retorne APENAS o código .tsx completo. Nenhuma explicação, nenhum markdown fence, nenhum texto fora do código. Comece com import e termine com registerRoot.`
+Retorne APENAS código TSX. Comece com import, termine com registerRoot.`
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +102,7 @@ export async function generateOverlay(opts: {
         '--model', 'sonnet',
       ],
       {
-        timeout: 180_000,
+        timeout: 240_000,
         maxBuffer: 2 * 1024 * 1024,
       },
       (err, stdout, stderr) => {
