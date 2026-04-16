@@ -43,7 +43,7 @@ export async function renderOverlay(opts: {
     '--codec', 'h264',
     '--concurrency', '1',          // VPS 4GB RAM — 1 thread
     '--gl', 'angle-egl',           // headless rendering
-    '--log', 'warning',            // menos output
+    '--log', 'warn',               // menos output
   ]
 
   // Se estiver usando npx, prefixar com 'remotion'
