@@ -5,7 +5,8 @@ export interface Segment {
   title: string        // título pro Short
   hook: string         // frase de abertura (primeiros 3 seg)
   category: 'insight' | 'humor' | 'viral' | 'tecnico' | 'reacao'
-  score: number        // 1-10
+  score: number        // 0-100 (viralidade)
+  justification: string // por que este trecho é viral
 }
 
 export interface JobData {

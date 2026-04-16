@@ -5,7 +5,7 @@ import { composeVideo } from './compose.js'
 import { join } from 'node:path'
 import { mkdirSync, existsSync } from 'node:fs'
 
-console.log('[renderer] Iniciando consumer de render jobs...')
+console.log('[renderer] Iniciando consumer de render jobs (DIRECTOR v7)...')
 
 const worker = createRenderWorker(async (job) => {
   const { clipId, transcript, context, facePath, outputDir } = job.data
@@ -15,26 +15,27 @@ const worker = createRenderWorker(async (job) => {
   const workDir = join(outputDir, '..', 'renders', clipId)
   if (!existsSync(workDir)) mkdirSync(workDir, { recursive: true })
 
-  // 1. DIRECTOR — gerar overlay.tsx via Claude Code CLI
+  // 1. DIRECTOR v7 — gera JSON de cenas (template) ou TSX custom (fallback)
   console.log(`[renderer] Clip ${clipId}: gerando overlay...`)
-  const componentPath = await generateOverlayWithRetry({
+  const directorResult = await generateOverlayWithRetry({
     clipId,
     transcript,
     context,
     outputDir: workDir,
   })
 
-  if (!componentPath) {
+  if (!directorResult) {
     console.error(`[renderer] Clip ${clipId}: DIRECTOR falhou — sem overlay gerado`)
     throw new Error(`Director falhou para clip ${clipId} — componente não gerado`)
   }
 
-  // 2. RENDER — Remotion render overlay.tsx → overlay.mp4
+  // 2. RENDER — Remotion render → overlay.mp4
   console.log(`[renderer] Clip ${clipId}: renderizando overlay...`)
   const overlayPath = join(workDir, `${clipId}_overlay.mp4`)
   await renderOverlay({
-    componentPath,
+    componentPath: directorResult.componentPath,
     outputPath: overlayPath,
+    propsPath: directorResult.propsPath, // undefined se custom TSX
   })
 
   // 3. COMPOSE — ffmpeg vstack overlay + face → final.mp4
